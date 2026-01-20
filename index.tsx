@@ -84,7 +84,48 @@ const AnswerExtractor: React.FC<{
   const [results, setResults] = useState<ExtractedQuestion[]>([]);
   const [pushedIds, setPushedIds] = useState<Set<string>>(new Set());
   const [pdfData, setPdfData] = useState<{ name: string, data: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve((reader.result as string).split(',')[1]);
+      reader.onerror = error => reject(error);
+    });
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && file.type === 'application/pdf') {
+      try {
+        setLoading(true);
+        const base64 = await fileToBase64(file);
+        setPdfData({ name: file.name, data: base64 });
+        setInput('');
+        setError(null);
+
+        // --- DEBUG LOG ---
+        console.log("PDF successfully read:", file.name);
+        console.log("Base64 length:", base64.length);
+        console.log("Gemini Key loaded:", process.env.API_KEY?.slice(0, 6) + "...");
+
+        // Force re-render
+        setTimeout(() => {
+          setPdfData(prev => prev ? { ...prev } : null);
+        }, 50);
+
+      } catch (err) {
+        setError("Failed to read PDF file.");
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    } else if (file) {
+      setError("Please upload a valid PDF document.");
+    }
+  };
 
   const isFull = currentCount >= 6;
 
@@ -135,16 +176,10 @@ const AnswerExtractor: React.FC<{
         </div>
       )}
 
-      <input type="file" ref={fileInputRef} onChange={e => {
-        const file = e.target.files?.[0];
-        if (file) {
-          const reader = new FileReader();
-          reader.onload = () => setPdfData({ name: file.name, data: (reader.result as string).split(',')[1] });
-          reader.readAsDataURL(file);
-        }
-      }} className="hidden" accept="application/pdf" />
+      <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="application/pdf" />
 
       <div className="flex flex-col gap-2 mb-6">
+        {error && <p className="text-[10px] text-red-500 font-bold uppercase text-center">{error}</p>}
         <button onClick={() => fileInputRef.current?.click()} className="py-2 border border-dashed border-slate-800 rounded-xl text-slate-600 hover:text-blue-400 text-[10px] font-bold uppercase transition-colors">Upload PDF</button>
         <button disabled={loading} onClick={handleExtract} className="py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 text-white text-[10px] font-black rounded-xl uppercase transition-all shadow-lg">
           {loading ? 'SCRIBING...' : 'EXTRACT VALID ANSWERS'}
@@ -162,8 +197,8 @@ const AnswerExtractor: React.FC<{
                 disabled={disabled}
                 onClick={() => { onPush(q); setPushedIds(prev => new Set(prev).add(q.id || q.text)); }}
                 className={`w-full py-2 rounded-lg text-[9px] font-black uppercase transition-all ${isPushed ? 'bg-emerald-500/10 text-emerald-500' :
-                    isFull ? 'bg-red-500/10 text-red-500 border border-red-500/20 cursor-not-allowed' :
-                      'bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-600 hover:text-white'
+                  isFull ? 'bg-red-500/10 text-red-500 border border-red-500/20 cursor-not-allowed' :
+                    'bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-600 hover:text-white'
                   }`}
               >
                 {isPushed ? 'PUSHED' : isFull ? 'LIMIT REACHED (6)' : 'PUSH TO ENGINE'}
