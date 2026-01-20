@@ -1,0 +1,5 @@
+{
+  "name": "Analogical Insight Extractor",
+  "description": "A processing engine for AZ-104 mastery that converts correctly answered questions into deep foundational rules, real-world analogies, and cross-topic mental models optimized for NotebookLM slide generation.",
+  "requestFramePermissions": []
+}
